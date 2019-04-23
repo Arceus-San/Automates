@@ -58,7 +58,6 @@ let rec creetransition (i:int) = function (* i est l'indice du premier etat *)
 (*val creetransition : int -> string -> (int * char * int) list = <fun> *) 
 
 creetransition 1 "abb";;
-(* !!!!!!!!!!!!!! erreur sur rajoute une !!!!!!!!!!!!!!!!!!!*)
 
 
 let rajouteUne (a: afn) ((q , c , p) : (int * char * int)) = {sigmaN= a.sigmaN;
@@ -195,13 +194,15 @@ let t1=Sys.time();;
 let testAdn= creeUnAutomate adnAlph sequence;;
 let t2=Sys.time();;
 t2-.t1;;
-
+(*- : float = 0.014999999999872671*)
 let t1=Sys.time();;
 recherche  testAdn adn2;;
 (* - : bool = true *) 
 let t2=Sys.time();;
 
 t2-.t1;; 
+
+(*- : float = 0.8589999999999236 *)
 
 (*************Generation d'adn aleatoire ******************)
 let genelettre = function 
@@ -223,3 +224,273 @@ let adn = geneAdn(10000);;
 let t2=Sys.time();;
 t2-.t1;; 
 (*- : float = 0.30999999999999517 *)
+
+
+(*******************************************Partie deter ************************************************************)
+
+(* ----------------------- Bibliothèque sur les listes -------------------------- *)
+let rec appartient = function 
+(a,b::l)-> if a=b then true else appartient(a,l)
+|(_,[])-> false;;
+(*appartient : 'a * 'a list -> bool = <fun>*)
+
+let rec union l = function 
+(a::l2)-> if appartient(a,l) then union l l2 else a:: (union l l2)
+| []->l;;
+(*union : 'a list -> 'a list -> 'a list = <fun>*)
+
+let rec enleve a = function
+ x::q -> if x = a then q else x::(enleve a q)
+ | [] -> [] ;;
+
+let rec intersection l1 = function
+	| [] -> []
+	| a :: l2 -> if appartient(a,l1) then a::(intersection (enleve a l1) l2) else intersection l1 l2 ;;
+
+let rec long = function
+(_::l)->1+long(l)
+|[]-> 0;;
+
+
+(* -------------------- RAPPELS ------------------ *)
+
+														
+(* Représentation d'un automate déterministe *)
+type etat = {accept : bool ; t : char -> int};;
+ 
+type afd = {sigma : char list ; (* l'alphabet *)
+			n : int ; (* Q est l'ensemble des états de 1 à n *)
+			init : int ; (* l'état initial *)
+			e : int -> etat};;
+							
+(* Représentation des automates non-déterministes *)
+type etatN = {acceptN : bool ; tN : char -> int list};;
+		
+type afn = {sigmaN: char list; (* l'alphabet *)
+			nN: int; (* Q est l'ensemble {1..N} *)
+			initN: int list; (* les états initiaux *)
+			eN : int -> etatN};;
+
+			
+(* Fonctions de transition *)
+exception  PasTransition ;;
+
+let transitN = function (aut, i, c) ->
+	try (aut.eN(i)).tN(c) 
+	with Match_failure _-> raise PasTransition;;
+	
+(* Liste des états Acceptants *)
+let etatsAcceptants auto = 
+	let rec auxi auto = function 
+		| 0 -> []
+		| i -> if (auto.eN(i)).acceptN then i::(auxi auto (i-1)) else auxi auto (i-1) 
+	in auxi auto (auto.nN) ;;
+(* val etatsAcceptants : afn -> int list = <fun> *)
+
+
+(* Exemple du TP *)
+
+let an1  = {sigmaN= ['a';'b'] ; nN = 3; initN = [1] ; 
+			eN = function	
+			    1 -> {acceptN = false ;
+				      tN = function 
+					       'a'->[1;2]
+						   |'b'-> [1]}
+				|2 -> {acceptN = false ;
+				      tN = function  
+						   'b'-> [3] }		   
+				|3 -> {acceptN = true ;
+				      tN = function 
+					       'a'->[3]
+						   |'b'->[3]   }	
+				
+		};;
+
+
+
+(* let rec auxilliaire = function 
+(a,b::l) -> [a::b]@auxilliaire(a,l)
+|_-> [];;
+
+auxilliaire(3,[[];[1];[2];[1;2]]);;(* #- : int list list = [[3]; [3; 1]; [3; 2]; [3; 1; 2]] *)
+
+(* #parties : 'a list -> 'a list list = <fun> *)
+
+let rec parties = function 
+((a:int)::l) -> let v=parties(l) in auxilliaire(a,v)@v
+|_-> [[]];;
+
+parties([1;2;3]);;(* #- : int list list = [[1; 2; 3]; [1; 2]; [1; 3]; [1]; [2; 3]; [2]; [3]; []] *)
+
+
+		
+let rec liste =function
+(1)->[1]
+|(i:int)-> liste(i-1)@[i] ;;	
+
+liste 3;;
+let rec suppression = function
+([]::l)-> l
+|(a::l)-> a::suppression(l);;
+
+let nouveauxetats (n:int) = suppression (parties(liste n)) ;;
+(* val nouveauxetats : int -> int list list = <fun> *)
+
+
+nouveauxetats 3;; (* - : int list list =[[1; 2; 3]; [1; 2]; [1; 3]; [1]; [2; 3]; [2]; [3]] *) *)
+
+(* Engendré l'ensemble des parties non vide de 1,...,n *)				
+let rec aux  x = function
+	| [] -> []
+	| a :: q -> (x::a) :: (aux x q) ;;
+		
+let rec parties = function
+	| 0 -> [[]]
+	| n -> parties(n-1)@( aux n (parties(n-1))) ;;
+
+let rec enleve = function 
+	| [] -> []
+	| x :: q -> if long(x) = 0 then q else x :: (enleve q) ;;
+	
+
+(* Trier les listes *)	
+let rec insere x = function 
+	| [] -> [x] 
+	| a :: q -> if x < a then x :: a ::q else a :: (insere x q) ;;
+
+let rec tri = function 
+	| [] -> []
+	| x :: q -> insere x (tri q) ;;
+	
+(*Multi-tri*)	
+let rec multi_tri = function
+	| [] -> []
+	| x :: q -> (tri x)::(multi_tri q) ;;
+	
+
+(* Finalement, la liste des nouveaux états de l'automate : *)
+
+let nouveauxetats = function n -> multi_tri (enleve(parties n)) ;;
+(*val nouveauxetats : int -> int list list = <fun> *)
+
+
+ nouveauxetats 3 ;;
+(*- : int list list = [[1]; [2]; [1; 2]; [3]; [1; 3]; [2; 3]; [1; 2; 3]] *)
+
+exception PasdeListe;;
+let rec cherchePosition etat  = function 
+(a::l)-> if a=etat then 1 else 1+ cherchePosition etat l 
+|_-> raise PasdeListe;;
+(* val quiEstEnPosition : 'a -> 'a list -> int = <fun> *)
+
+
+cherchePosition [3] ( nouveauxetats 3);;
+
+let rec quiEstALaPosition (i:int) = function 
+(a::l)-> if i=1 then a else quiEstALaPosition (i-1) l
+|_->raise PasdeListe ;;
+
+(* val quiEstALaPosition : int -> 'a list -> 'a = <fun> *)
+
+quiEstALaPosition 3 (nouveauxetats 3);;(*  - : int list = [3] *)
+
+quiEstALaPosition 8 (nouveauxetats 3);;(*  Exception: Failure "pas dans la liste". *)
+
+let rec transitN_list (an:afn) (liste:int list) (c:char)=match liste with
+(a::l)-> (try let test=transitN(an,a,c) in  (union(test) (transitN_list an l c)) with 
+			PasTransition -> transitN_list an l c)
+			
+|_->[];;         
+(* val transitN_list : afn -> int list -> char -> int list = <fun> *)
+
+transitN_list an1 [1;3] 'a';;
+(* - : int list = [3; 1; 2] *)
+transitN_list an1 [1;2] 'a';;
+
+
+let an2  = {sigmaN= ['a';'b';'c'] ; nN = 4; initN = [1] ; 
+			eN = function	
+			    1 -> {acceptN = false ;
+				      tN = function 
+					       'a'->[1;2]
+						   |'b'-> [1]
+						   |'c'-> [1]}
+				|2 -> {acceptN = false ;
+				      tN = function  
+						   'b'-> [3] }		   
+				|3 -> {acceptN = false ;
+				      tN = function 
+					       'b'->[4] }
+				|4 ->{acceptN = true  ;
+				      tN = function 
+					       _-> raise PasTransition}	
+				
+		};;
+
+long(nouveauxetats 4);;
+cherchePosition [1;2] (nouveauxetats 4);;
+
+
+let rec contientA (an:afn) = function
+	(a::l)-> (an.eN(a)).acceptN || contientA an l
+	|([])->false;;
+
+let rec vaChercher (an:afn) (c:char) = function
+	(a::l)->(try ( union ((an.eN(a)).tN(c)) (vaChercher an c l) ) with Match_failure _->vaChercher an c l
+																		|(PasTransition)->vaChercher an c l)
+
+	|[]->[];;
+
+
+vaChercher an2 'a' [1;2];;
+let cherche (an:afn) (c:char) (l:int list) = tri (vaChercher an c l);; 
+
+
+let autoDet (aut:afn) = 
+	let parties = nouveauxetats aut.nN in
+		let taille = long(parties) in
+
+
+	{sigma = aut.sigmaN ; (* l'alphabet *)
+			n = taille ; (* Q est l'ensemble des états de 1 à n *)
+			init = cherchePosition aut.initN parties; (* l'état initial *)
+			e = function 
+			(etat) -> let listEtat = (quiEstALaPosition etat  parties ) in   {accept =(contientA aut listEtat)  ;
+						 t = function 
+						 (etat)-> try  (cherchePosition ( cherche aut etat listEtat )  parties) with  PasdeListe -> -1 
+						
+						
+
+
+			} };;
+
+
+
+let an3 = autoDet an2 ;;
+
+(an3.e(1)).t('a');;
+(an3.e(3)).t('a');;
+(an3.e(3)).t('b');;
+(an3.e(3)).t('c');;
+
+let rec rien (an:afd)  = function 
+(1)-> [(1,(an.e(1)).accept,(an.e(1)).t('a'),(an.e(1)).t('b'),(an.e(1)).t('c'))]
+|(n)->[(n,(an.e(n)).accept,(an.e(n)).t('a'),(an.e(n)).t('b'),(an.e(n)).t('c'))] @ rien an (n-1);; 
+
+rien an3 15 ;;
+
+(*
+  rien an3 15 ;;
+- : (int * bool * int * int * int) list =
+[(15, false, 3, 13, 1); (14, false, -1, 12, -1); (13, false, 3, 9, 1);
+ (12, false, -1, 8, -1); (11, false, 3, 5, 1); (10, false, -1, 4, -1);
+ (9, false, 3, 1, 1); (8, false, -1, -1, -1); (7, false, 3, 13, 1);
+ (6, false, -1, 12, -1); (5, false, 3, 9, 1); (4, false, -1, 8, -1);
+ (3, false, 3, 5, 1); (2, false, -1, 4, -1); (1, false, 3, 1, 1)]
+#*)
+let rec rien2 (an:afd) (parties:  int list list) = function 
+(1)-> [((quiEstALaPosition 1  parties),1,(an.e(1)).accept,(an.e(1)).t('a'),(an.e(1)).t('b'),(an.e(1)).t('c'))]
+|(n)->[((quiEstALaPosition n  parties),n,(an.e(n)).accept,(an.e(n)).t('a'),(an.e(n)).t('b'),(an.e(n)).t('c'))] @ (rien2 (an) (parties) (n-1));; 
+
+let parties = nouveauxetats 4;;
+rien2 an3 parties 15 ;;
