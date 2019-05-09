@@ -363,7 +363,7 @@ let autoDet (aut:afn) =
 			e = function 
 			(etat) -> let listEtat = (quiEstALaPosition etat  parties ) in   {accept =(contientA aut listEtat)  ;
 						 t = function 
-						 (etat)-> try  (cherchePosition ( cherche aut etat listEtat )  parties) with  PasdeListe -> -1 
+						 (lettre)-> try  (cherchePosition ( cherche aut lettre listEtat )  parties) with  PasdeListe -> -1 
 						
 						
 
